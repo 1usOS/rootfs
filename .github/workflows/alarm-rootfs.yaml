@@ -1,0 +1,70 @@
+name: Arch Linux ARM rootfs
+
+# Controls when the workflow will run
+on:
+  push:
+    tags:
+      - 'archlinuxarm'
+  # Run the workflow every Sunday at 00:00 UTC
+  schedule:
+    - cron: '0 0 * * 0'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+
+      # Runs a set of commands using the runners shell
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y qemu-user-static arch-install-scripts
+
+      - name: Download rootfs
+        run: |
+          curl -LO http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+
+      - name: Extract rootfs
+        run: |
+          sudo mkdir -p rootfs
+          sudo tar -xzf ArchLinuxARM-aarch64-latest.tar.gz -C rootfs --strip-components=1
+
+      - name: Enter chroot
+        run: |
+          if [ "$system_arch" == "x86_64" ]; then
+              S1=':qemu-aarch64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7'
+              S2=':\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff:/usr/bin/qemu-aarch64-static:CF'
+              echo -n $S1$S2| sudo tee /lib/binfmt.d/05-local-qemu-aarch64-static.conf
+              sudo systemctl restart systemd-binfmt.service
+          fi
+          sudo arch-chroot rootfs /bin/bash <<END
+            pacman-key --init
+            pacman-key --populate archlinuxarm
+            sed -i "s|CheckSpace|#CheckSpace|" /etc/pacman.conf
+            pacman -Syu --needed --noconfirm
+            pacman -Scc --noconfirm
+            sed -i "s|#CheckSpace|CheckSpace|" /etc/pacman.conf
+          END
+
+      - name: Pack rootfs
+        run: |
+          ROOTFS_TIMESTAMP=$(date +"%Y%m%d")
+          sudo tar -czf ArchLinuxARM-aarch64-$ROOTFS_TIMESTAMP.tar.gz rootfs
+          sudo cp ArchLinuxARM-aarch64-$ROOTFS_TIMESTAMP.tar.gz ArchLinuxARM-aarch64-latest.tar.gz
+
+      - name: Upload to GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+            artifacts: "ArchLinuxARM-*.tar.gz"
+            makeLatest: false
+            allowUpdates: true
+            omitBody: true
