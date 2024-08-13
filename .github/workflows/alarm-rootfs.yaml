@@ -51,8 +51,9 @@ jobs:
             pacman-key --populate archlinuxarm
             sed -i "s|CheckSpace|#CheckSpace|" /etc/pacman.conf
             pacman -Syu --needed --noconfirm
-            pacman -Scc --noconfirm
+            yes y | pacman -Scc
             sed -i "s|#CheckSpace|CheckSpace|" /etc/pacman.conf
+            rm /etc/machine-id
           END
 
       - name: Pack rootfs
