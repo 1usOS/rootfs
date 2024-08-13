@@ -2,9 +2,9 @@ name: Arch Linux ARM rootfs
 
 # Controls when the workflow will run
 on:
+  # Runs on pushes targeting the default branch
   push:
-    tags:
-      - 'archlinuxarm'
+    branches: ["main"]
   # Run the workflow every Sunday at 00:00 UTC
   schedule:
     - cron: '0 0 * * 0'
@@ -66,6 +66,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
             artifacts: "ArchLinuxARM-*.tar.gz"
+            tag: "archlinuxarm"
             makeLatest: false
             allowUpdates: true
             omitBody: true
