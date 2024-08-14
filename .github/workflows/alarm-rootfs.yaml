@@ -27,6 +27,7 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install -y qemu-user-static arch-install-scripts libarchive-tools
 
       - name: Download rootfs
