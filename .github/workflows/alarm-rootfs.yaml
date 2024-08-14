@@ -47,12 +47,13 @@ jobs:
               sudo systemctl restart systemd-binfmt.service
           fi
           sudo arch-chroot rootfs /bin/bash <<END
-            pacman-key --init
-            pacman-key --populate archlinuxarm
+            cp /etc/pacman.conf /etc/pacman.conf.bak
+            sed -i "s|#ParallelDownloads = 5|ParallelDownloads = 999|" /etc/pacman.conf
             sed -i "s|CheckSpace|#CheckSpace|" /etc/pacman.conf
-            pacman -Syu dialog wpa_supplicant cloud-guest-utils --needed --noconfirm
+            sed -i "s|Required DatabaseOptional|Never|" /etc/pacman.conf
+            pacman -Syu dialog wpa_supplicant --needed --noconfirm
             yes y | pacman -Scc
-            sed -i "s|#CheckSpace|CheckSpace|" /etc/pacman.conf
+            [ -f /etc/pacman.conf.pacnew ] && cp /etc/pacman.conf.pacnew /etc/pacman.conf || cp /etc/pacman.conf.bak /etc/pacman.conf
             rm /etc/machine-id
           END
 
