@@ -55,7 +55,6 @@ jobs:
             pacman -Syu sudo dialog wpa_supplicant --needed --noconfirm
             yes | pacman -Scc
             [ -f /etc/pacman.conf.pacnew ] && cp /etc/pacman.conf.pacnew /etc/pacman.conf || cp /etc/pacman.conf.bak /etc/pacman.conf
-            rm /etc/machine-id
           END
 
       - name: Pack rootfs
