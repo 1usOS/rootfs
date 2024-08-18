@@ -1,0 +1,87 @@
+name: Arch Linux ARM rootfs
+
+# Controls when the workflow will run
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["main"]
+  # Run the workflow every Sunday at 00:00 UTC
+  schedule:
+    - cron: '0 0 * * 0'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+
+      # Runs a set of commands using the runners shell
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          # Arch Linux Tools
+          sudo apt-get install -y arch-install-scripts pacman-package-manager
+          # For executing aarch64 binaries
+          if [ "$(uname -m)" != "aarch64" ]; then
+              sudo apt-get install -y qemu-user-static
+              S1=':qemu-aarch64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7'
+              S2=':\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff:/usr/bin/qemu-aarch64-static:CF'
+              echo -n $S1$S2| sudo tee /lib/binfmt.d/05-local-qemu-aarch64-static.conf
+              sudo systemctl restart systemd-binfmt.service
+          fi
+
+      - name: Setup /etc/pacman.conf
+        run: |
+          # Download pacman.conf
+          curl -LO https://gitlab.archlinux.org/archlinux/packaging/packages/pacman/-/raw/main/pacman.conf
+          sudo cp pacman.conf /etc/pacman.conf
+
+          # Speed up pacman downloads
+          sudo sed -i "s|#ParallelDownloads = 5|ParallelDownloads = 999|" /etc/pacman.conf
+          # Disable CheckSpace to prevent chroot issues
+          sudo sed -i "s|CheckSpace|#CheckSpace|" /etc/pacman.conf
+          # Disable GPG Signature so we dont need any key
+          sudo sed -i "s|Required DatabaseOptional|Never|" /etc/pacman.conf
+
+          # Target to aarch64
+          sudo sed -i "s|Architecture = auto|Architecture = aarch64|" /etc/pacman.conf
+          # Add mirrorlist
+          sudo mkdir -p /etc/pacman.d
+          echo "Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/\$arch/\$repo" | sudo tee /etc/pacman.d/mirrorlist
+
+      - name: Run Pacstrap
+        run: |
+          # Create a folder to work with
+          sudo mkdir -p rootfs
+
+          # Install packages to rootfs
+          sudo pacstrap rootfs base archlinuxarm-keyring linux-aarch64 linux-firmware mkinitcpio net-tools netctl dhcpcd wpa_supplicant sudo openssh ldns which nano vi dialog
+
+          # Clear cache
+          sudo arch-chroot rootfs /bin/bash -c "yes | pacman -Scc"
+
+      - name: Pack rootfs
+        run: |
+          ROOTFS_TIMESTAMP=$(date +"%Y%m%d")
+          cd rootfs
+          sudo tar -czf ../ArchLinuxARM-aarch64-$ROOTFS_TIMESTAMP.tar.gz .
+          cd ..
+          sudo cp ArchLinuxARM-aarch64-$ROOTFS_TIMESTAMP.tar.gz ArchLinuxARM-aarch64-latest.tar.gz
+
+      - name: Upload to GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+            artifacts: "ArchLinuxARM-*.tar.gz"
+            tag: "archlinuxarm"
+            makeLatest: false
+            allowUpdates: true
+            omitBody: true
